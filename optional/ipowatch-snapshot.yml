@@ -1,0 +1,50 @@
+name: ipowatch snapshot
+
+# OPTIONAL. To enable: move this file to .github/workflows/, install a self-hosted runner
+# on a machine on a home network (see the README), and add a repo variable
+# SNAPSHOT_SOURCES=ipowatch. Do not attach a self-hosted runner to a public repo.
+
+# ipowatch.in returns 403 to GitHub's cloud runners, so its table is fetched from the
+# self-hosted runner on a home network and committed as snapshots/ipowatch.json.
+# The cloud alert workflow merges that snapshot with its live investorgain data.
+# It never touches state.json. If the runner is offline this job just waits, and the
+# alert workflow carries on with investorgain alone.
+
+on:
+  schedule:
+    - cron: "20,50 3-16 * * *"   # ten minutes before each alert run
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ipowatch-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - run: python3 -m pip install --user -r requirements.txt
+
+      - name: Fetch ipowatch table
+        run: python3 bot.py snapshot ipowatch
+
+      - name: Save snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add snapshots/ipowatch.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update ipowatch snapshot"
+            for attempt in 1 2 3; do
+              git pull --rebase && git push && break
+              sleep 5
+            done
+          fi

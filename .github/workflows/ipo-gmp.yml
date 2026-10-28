@@ -1,0 +1,60 @@
+name: IPO GMP alerts
+
+on:
+  schedule:
+    - cron: "*/30 3-16 * * *"   # every 30 min, ~08:30–22:00 IST
+    - cron: "45 3 * * *"        # 09:15 IST morning digest
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check = alerts only, digest = alerts + summary"
+        type: choice
+        options: [check, digest]
+        default: check
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ipo-gmp
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}   # latest commit, so state.json and snapshots are fresh
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Check GMP and send alerts
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MAINBOARD_THRESHOLD: ${{ vars.MAINBOARD_THRESHOLD }}
+          REALERT_DELTA: ${{ vars.REALERT_DELTA }}
+          SNAPSHOT_SOURCES: ${{ vars.SNAPSHOT_SOURCES }}   # leave unset unless you add the optional snapshot job
+          MODE: ${{ github.event.schedule == '45 3 * * *' && 'digest' || inputs.mode || 'check' }}
+        run: python bot.py
+
+      - name: Save alert state
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update GMP alert state"
+            for attempt in 1 2 3; do
+              git pull --rebase && git push && break
+              sleep 5
+            done
+          fi
