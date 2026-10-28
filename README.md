@@ -19,7 +19,7 @@ GMP figures are unofficial grey-market estimates. Treat an alert as "worth a loo
 
 ## Setup
 1. **Make your copy.** On this repo's page click **Use this template → Create a new repository**.
-   Choose **Private**. (You need read access to this template; ask its owner to invite you.)
+   Choose **Private**, so your copy and its settings stay yours.
 2. **Create a Telegram bot.** In Telegram, message **@BotFather**, send `/newbot`, follow the prompts,
    and copy the token it gives you.
 3. **Find your chat ID.** Open your new bot in Telegram and tap **Start** (send it any message).
